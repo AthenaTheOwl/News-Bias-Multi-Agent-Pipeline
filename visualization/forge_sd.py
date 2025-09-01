@@ -1,0 +1,1 @@
+# ForgeUI Stable Diffusion integration

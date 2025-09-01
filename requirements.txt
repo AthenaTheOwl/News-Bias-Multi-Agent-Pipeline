@@ -1,0 +1,15 @@
+langchain>=0.2.14
+langchain-community>=0.2.10
+langchain-ollama>=0.1.0
+langgraph>=0.2.0
+feedparser>=6.0.10
+newspaper3k>=0.2.8
+faiss-cpu>=1.7.4
+sentence-transformers>=2.2.2
+sqlite-utils>=3.31
+transformers>=4.41.2
+torch>=2.3.1
+requests
+lxml_html_clean
+streamlit>=1.35.0
+tqdm
