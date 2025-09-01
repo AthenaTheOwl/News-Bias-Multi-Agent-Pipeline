@@ -1,0 +1,9 @@
+Okay, here’s the final output, combining all the previous steps and refinements:
+
+**Headline:** Arsenal’s Nketiah Shines as Jesus Struggles – Football Performance Analysis
+
+**Summary:** Eddie Nketiah scored six goals in six games since Gabriel Jesus’ injury, establishing himself as a credible option for manager Mikel Arteta. Data comparing their goal-scoring rates: Nketiah every 143 minutes versus Jesus every 290 minutes. The article discusses how Jesus was overshadowed by his arrival from Man City and questions whether he’ll keep his spot when injured.
+
+**Bias Assessment:** Neutral
+
+**Context Notes:** The analysis is centered on the performance of football players at Arsenal. It explores tactical considerations, playing time, and goal-scoring rates within a sporting context. It contains descriptive language about player performances and team dynamics. There is no explicit discussion of policy, economics, or social issues, rendering it neutral in political bias. The proxy likely triggered because the analysis focuses on assessing relative performance, which can inherently have subjective interpretations.
