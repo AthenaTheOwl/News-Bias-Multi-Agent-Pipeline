@@ -1,5 +1,6 @@
 # retrieval/rss_fetch.py
 
+import os
 import feedparser
 import requests
 import json
@@ -58,7 +59,9 @@ def search_articles(structured_query: Union[str, dict], max_articles=10) -> List
     if not query:
         return _fallback_rss(max_articles)
 
-    api_key = "***GNEWS_KEY_REMOVED***"  # <-- replace with your key
+    api_key = os.environ.get("GNEWS_API_KEY")
+    if api_key is None:
+        raise RuntimeError("GNEWS_API_KEY env var not set — see .env.example")
     url = "https://gnews.io/api/v4/search"
     params = {
         "q": query,
