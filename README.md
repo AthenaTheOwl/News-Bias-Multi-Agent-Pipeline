@@ -1,5 +1,14 @@
 <!-- ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ -->
 
+> **SECURITY NOTICE (2026-05-31):** earlier revisions of this repo contained a
+> hardcoded GNews API key in `retrieval/rss_fetch.py`. The key has been
+> **revoked** and the code now reads `GNEWS_API_KEY` from the environment. If
+> you forked, cloned, or copied any code from this repo before this notice,
+> please **pull main and rotate any keys you may have copied**. A follow-up
+> history-rewrite (git filter-repo) will scrub the leaked key from prior
+> commits — until that lands, the key is still discoverable in git history but
+> is no longer valid.
+
 # N° 07 · news bias · multi-agent pipeline
 
 > *agents reading agents reading the news.*
@@ -57,6 +66,22 @@ each agent is small. each does one thing. the interesting part is the **critique
 each one solves the same problem, on the same data, with the same prompts — so the differences are about the framework, not the task.
 
 <!-- ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ -->
+
+## configuration
+
+this pipeline calls the GNews API. you'll need your own key — get one at
+[gnews.io](https://gnews.io/) and wire it up via environment variable:
+
+```bash
+cp .env.example .env
+# then edit .env and set GNEWS_API_KEY=<your key>
+```
+
+at runtime the code reads `os.environ["GNEWS_API_KEY"]`. if the var is unset
+the search step will raise `RuntimeError("GNEWS_API_KEY env var not set — see
+.env.example")` and the pipeline falls back to plain RSS feeds.
+
+`.env` is gitignored. **do not** commit real keys.
 
 ## status
 
