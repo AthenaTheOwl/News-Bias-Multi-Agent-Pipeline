@@ -1,0 +1,65 @@
+fixtures:
+  - id: left_climate
+    expected: Lean Left
+    subject: climate bill
+    article:
+      title: Climate bill expands public investment
+      text: "Lawmakers praised the climate package as a public investment in workers, clean energy, and environmental justice. Supporters said the plan would protect communities from corporate greed and accelerate union jobs. Opponents questioned the cost but the article emphasized equity and climate action throughout."
+  - id: left_voting
+    expected: Lean Left
+    subject: voting rights
+    article:
+      title: Voting access plan advances
+      text: "The voting rights plan was framed as a response to discrimination and barriers facing low-income voters. Advocates said equity and public investment in election access would protect communities. Critics said the proposal was too costly."
+  - id: right_border
+    expected: Lean Right
+    subject: border bill
+    article:
+      title: Border bill emphasizes law and order
+      text: "The governor framed the border bill as a law and order response to illegal immigration and government overreach. Supporters said taxpayers need protection and small business owners need freedom from federal mandates. Critics argued the plan would invite litigation."
+  - id: right_schools
+    expected: Lean Right
+    subject: school policy
+    article:
+      title: Schools bill cites parental rights
+      text: "Supporters called the schools bill a parental rights measure against woke classroom rules and government overreach. The article emphasized religious liberty, freedom, and taxpayer accountability. Opponents said the bill would harm students."
+  - id: mixed_budget
+    expected: Mixed
+    subject: budget
+    articles:
+      - title: Budget plan funds climate jobs
+        text: "Supporters praised climate funding, union jobs, and environmental justice in the budget package."
+      - title: Budget plan cuts taxes
+        text: "Supporters praised taxpayer relief, small business freedom, and limits on government overreach in the same package."
+  - id: mixed_immigration
+    expected: Mixed
+    subject: immigration compromise
+    articles:
+      - title: Immigration compromise adds worker protections
+        text: "The compromise added worker protections, discrimination safeguards, and public investment in legal aid."
+      - title: Immigration compromise adds enforcement
+        text: "The compromise added border enforcement, law and order provisions, and taxpayer oversight."
+  - id: neutral_sports
+    expected: Center
+    subject: football
+    article:
+      title: Football club announces stadium schedule
+      text: "The football club announced a revised stadium schedule after the tournament calendar changed. The match dates and ticket windows were listed without policy claims or ideological language. Officials said travel guidance would be posted next week."
+  - id: neutral_weather
+    expected: Center
+    subject: weather
+    article:
+      title: Storm forecast updated
+      text: "Meteorologists updated the storm forecast with rainfall totals, wind timing, and travel guidance. The article listed emergency contacts and shelter hours without party or policy framing."
+  - id: unclear_charged
+    expected: Undetermined
+    subject: technology rollout
+    article:
+      title: Technology rollout draws sharp language
+      text: "The rollout was described as reckless by critics and a potential disaster by rival executives. The article did not connect the dispute to parties, policy ideology, elections, or government programs. Most claims focused on product timing and customer support."
+  - id: unclear_market
+    expected: Undetermined
+    subject: market dispute
+    article:
+      title: Market dispute uses heated terms
+      text: "Executives called the rival plan a scheme and a betrayal of customers, but the dispute centered on pricing and product delivery. No election, party, or policy ideology was discussed."

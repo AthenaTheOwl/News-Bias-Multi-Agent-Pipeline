@@ -1,98 +1,104 @@
-<!-- ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ -->
+# News Bias Multi-Agent Pipeline
 
-> **SECURITY NOTICE (2026-05-31):** earlier revisions of this repo contained a
-> hardcoded GNews API key in `retrieval/rss_fetch.py`. The key has been
-> **revoked** and the code now reads `GNEWS_API_KEY` from the environment. If
-> you forked, cloned, or copied any code from this repo before this notice,
-> please **pull main and rotate any keys you may have copied**. A follow-up
-> history-rewrite (git filter-repo) will scrub the leaked key from prior
-> commits — until that lands, the key is still discoverable in git history but
-> is no longer valid.
+A learning artifact for agent orchestration, news framing, and evidence
+discipline. It is not a production bias detector.
 
-# N° 07 · news bias · multi-agent pipeline
+The demo pulls articles for a subject, summarizes them, makes a
+structured bias judgment, asks a critic to review that judgment, and
+reconciles the result into a final report. The same pipeline is
+implemented three ways so the framework differences are easy to inspect:
 
-> *agents reading agents reading the news.*
+| Implementation | File | What it teaches |
+|---|---|---|
+| Static Python | `impls/static/pipeline.py` | The baseline sequence with no framework |
+| LangChain | `impls/langchain/pipeline.py` | Bounded runnable composition |
+| LangGraph | `impls/langgraph/pipeline.py` | Explicit state machine nodes and edges |
 
-a small chain of agents that pulls news on a subject, summarizes it, decides where it leans, then turns around and critiques its own bias detection — and finally summarizes the whole loop. built three times in three styles, on purpose, as a way to learn the tools.
+## Deployment target
 
-`python` · `streamlit` · `langchain` · `langgraph` · `gnews` · 2024 · **status: solved**
+Target host: Streamlit Community Cloud.
 
-<!-- ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ -->
+Requested public URL: `https://news-bias-pipeline.streamlit.app`
 
-## the chain
+Entry point: `app.py`
 
-```
-   subject prompt (streamlit UI)
-              │
-              ▼
-       ┌─────────────┐
-       │ pull        │  ← GNews API
-       └─────────────┘
-              │
-              ▼
-       ┌─────────────┐
-       │ summarize   │
-       └─────────────┘
-              │
-              ▼
-       ┌─────────────┐
-       │ detect bias │  → left / right / center / etc.
-       └─────────────┘
-              │
-              ▼
-       ┌─────────────┐
-       │ critique    │  ← evaluates the detector
-       └─────────────┘
-              │
-              ▼
-       ┌─────────────┐
-       │ summarize   │  ← of everything above
-       └─────────────┘
-              │
-              ▼
-            output
-```
+The app is BYOK. Visitors paste model and GNews keys into the sidebar
+for the current browser session. The no-key `heuristic` provider runs
+without external model calls and is the default for CI and quick review.
 
-each agent is small. each does one thing. the interesting part is the **critique** step — an agent whose only job is to second-guess the bias call, and a final summarizer that has to reconcile both views.
+Why Streamlit Cloud: this is a Python teaching demo with a Streamlit UI
+already at the product boundary. A Vercel deployment would require a
+separate Python service or a full Next.js rewrite before the core idea is
+visible.
 
-## the three implementations
+## What changed in the 2026 overhaul
 
-| version | what it taught |
-|---|---|
-| `main.py` (static)         | the whole pipeline, hand-wired. no framework. |
-| langchain prototype        | how chains, tools, and prompt templates feel in practice |
-| langgraph workflow         | how the same chain looks as a state graph with explicit edges |
+- The bias detector is now wired into the runtime. The critic reviews a
+  real `StructuredBiasJudgment`, not a placeholder score.
+- Outputs are Pydantic models: `StructuredSummary`,
+  `StructuredBiasJudgment`, `StructuredCritique`, `ReconciledReport`,
+  and `PipelineTrace`.
+- Every cited span is verified verbatim against the article text.
+- The three promised implementations exist and share the same core.
+- Provider selection is explicit: `heuristic`, `anthropic`, `openai`,
+  `google`, or `ollama`.
+- Dead FAISS, sqlite, duplicate UI, pycache, and setup-script artifacts
+  were removed from the active runtime.
+- CI runs unit tests, eval fixtures, and import/build smoke checks.
 
-each one solves the same problem, on the same data, with the same prompts — so the differences are about the framework, not the task.
+## Run locally
 
-<!-- ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ -->
-
-## configuration
-
-this pipeline calls the GNews API. you'll need your own key — get one at
-[gnews.io](https://gnews.io/) and wire it up via environment variable:
-
-```bash
-cp .env.example .env
-# then edit .env and set GNEWS_API_KEY=<your key>
+```powershell
+python -m pip install -r requirements.txt
+python -m pytest
+python main.py "AI regulation last week" --impl static --provider heuristic
+python -m streamlit run app.py
 ```
 
-at runtime the code reads `os.environ["GNEWS_API_KEY"]`. if the var is unset
-the search step will raise `RuntimeError("GNEWS_API_KEY env var not set — see
-.env.example")` and the pipeline falls back to plain RSS feeds.
+Optional local env:
 
-`.env` is gitignored. **do not** commit real keys.
+```powershell
+Copy-Item .env.example .env
+# Fill only the keys you want to use locally.
+```
 
-## status
+## Provider modes
 
-repo contains the initial commit. files need cleanup and proper setup docs (LLM keys, env config, the 5 lite models in use). the bones are there; the polish isn't.
+| Provider | Key source | Notes |
+|---|---|---|
+| `heuristic` | none | Default. Deterministic, testable, no model calls |
+| `anthropic` | sidebar or `ANTHROPIC_API_KEY` for CLI | Direct HTTP call |
+| `openai` | sidebar or `OPENAI_API_KEY` for CLI | Direct Responses API call |
+| `google` | sidebar or `GOOGLE_API_KEY` for CLI | Direct Gemini API call |
+| `ollama` | local `OLLAMA_HOST` | Keeps the old no-cloud local path |
 
-if you want to actually replicate it: 👋 reach out and i'll walk you through it.
+## Project structure
 
-## colophon
+- `app.py` - canonical Streamlit app.
+- `main.py` - CLI entry point.
+- `core/` - shared schemas, provider adapter, citation verifier, search,
+  extraction, prompts, and pipeline stages.
+- `impls/` - static, LangChain, and LangGraph implementations.
+- `tests/` - unit, eval, and smoke tests.
+- `docs/requirements.md` - traceable R-NB requirements.
+- `docs/three_implementations.md` - framework comparison.
+- `docs/limitations.md` - what the demo cannot claim.
+- `docs/trust_model.md` - BYOK and deployment trust boundary.
+- `docs/research.md` - sources used to shape the overhaul.
 
-a learning project, kept honest. the point wasn't shipping a bias detector — it was learning langchain, langgraph, and the agentic patterns by re-implementing the same idea three different ways and noticing what changed.
+## Evaluation
 
-resources used: HuggingFace's free curriculum, lots of docs, lots of small experiments.
+`tests/eval/golden_fixtures.yaml` contains ten small labeled fixtures:
+left, right, mixed, neutral, and undetermined cases. The gate requires
+each implementation to hit at least 80 percent agreement in heuristic
+mode.
 
-*built downstairs.* — [the basement, room 7](https://github.com/AthenaTheOwl)
+This is a regression gate, not a research benchmark. The limitations are
+documented in `docs/limitations.md`.
+
+## Security note
+
+Earlier history contained a hardcoded GNews key. The current code reads
+keys from explicit caller inputs or environment variables for local CLI
+only. The Streamlit app keeps keys in session state and never writes
+them to disk.
