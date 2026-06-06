@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from time import perf_counter
+from urllib.parse import urlencode
 
 import streamlit as st
 
 from core.demo_cases import DemoCase, demo_case_titles, get_demo_case
-from core.framing import framing_table, takeaways, watch_items
+from core.framing import framing_table, source_context_summary, source_diversity, takeaways, watch_items
 from core.llm_provider import DEFAULT_MODELS
 from core.schemas import Article, LLMKeys, PipelineTrace
 from impls.registry import IMPLEMENTATIONS, get_runner
@@ -45,8 +46,50 @@ STAGE_LABELS = {
     "reconcile": "Write the final reader-facing result",
 }
 
+APP_URL = "https://news-bias-multi-agent-pipeline.streamlit.app/"
+PROVIDERS = ["heuristic", "anthropic", "openai", "google", "ollama"]
+
 
 st.set_page_config(page_title="News Bias Multi-Agent Pipeline", layout="wide")
+
+
+def _query_value(name: str, default: str) -> str:
+    value = st.query_params.get(name, default)
+    if isinstance(value, list):
+        return str(value[0]) if value else default
+    return str(value)
+
+
+def _index(values: list[str] | tuple[str, ...], selected: str) -> int:
+    try:
+        return list(values).index(selected)
+    except ValueError:
+        return 0
+
+
+def _share_url(mode: str, subject: str, provider: str, implementation: str, demo_case: DemoCase | None) -> str:
+    params = {
+        "mode": "live" if mode == "Live search" else "story",
+        "subject": subject,
+        "provider": provider,
+        "impl": implementation,
+    }
+    if demo_case is not None:
+        params["scenario"] = demo_case.slug
+    return APP_URL + "?" + urlencode(params)
+
+
+def _update_query_params(mode: str, subject: str, provider: str, implementation: str, demo_case: DemoCase | None) -> None:
+    params = {
+        "mode": "live" if mode == "Live search" else "story",
+        "subject": subject,
+        "provider": provider,
+        "impl": implementation,
+    }
+    if demo_case is not None:
+        params["scenario"] = demo_case.slug
+    st.query_params.clear()
+    st.query_params.update(params)
 
 
 def _keys_from_sidebar() -> LLMKeys:
@@ -97,17 +140,22 @@ def _article_title(trace: PipelineTrace, article_id: str) -> str:
 
 def _render_framing_brief(trace: PipelineTrace, elapsed: float) -> None:
     label = trace.report.final_label
+    diversity = source_diversity(trace)
+    context = source_context_summary(trace)
     st.subheader("Framing brief")
 
-    metrics = st.columns([1, 1, 1, 1, 1])
+    metrics = st.columns([1, 1, 1, 1, 1, 1])
     metrics[0].metric("Frame", label)
     metrics[1].metric("Confidence", f"{trace.report.confidence:.2f}")
     metrics[2].metric("Articles", trace.report.article_count)
-    metrics[3].metric("Engine", IMPLEMENTATION_NOTES[trace.implementation]["label"])
-    metrics[4].metric("Runtime", f"{int(elapsed * 1000)} ms")
+    metrics[3].metric("Sources", diversity["unique_sources"])
+    metrics[4].metric("Engine", IMPLEMENTATION_NOTES[trace.implementation]["label"])
+    metrics[5].metric("Runtime", f"{int(elapsed * 1000)} ms")
 
     st.markdown(f"**Bottom line:** {LABEL_MEANING.get(label, 'Review the evidence below.')}")
     st.write(trace.report.executive_summary)
+    st.caption(f"Source diversity: {diversity['rating']} - {diversity['warning']}")
+    st.caption(f"Source context: {context['summary']}")
 
     st.markdown("**What to take away**")
     for item in takeaways(trace):
@@ -223,28 +271,52 @@ def _render_comparison(results: dict[str, tuple[PipelineTrace, float]]) -> None:
 st.title("Framing Brief")
 st.caption("Turn a news topic into a concise read on framing, evidence, and what to check before sharing.")
 
+scenario_titles = demo_case_titles()
+initial_scenario = _query_value("scenario", "climate-policy")
+initial_case = get_demo_case(initial_scenario)
+initial_mode = "Live search" if _query_value("mode", "story") == "live" else "Story pack"
+initial_provider = _query_value("provider", "heuristic")
+initial_impl = _query_value("impl", "static")
+
 with st.sidebar:
-    provider = st.selectbox("Analysis mode", ["heuristic", "anthropic", "openai", "google", "ollama"], index=0)
+    provider = st.selectbox("Analysis mode", PROVIDERS, index=_index(PROVIDERS, initial_provider))
     model = st.text_input("Model", value=DEFAULT_MODELS.get(provider, ""))
     max_articles = st.slider("Max live articles", min_value=1, max_value=8, value=4)
     keys = _keys_from_sidebar()
 
-mode = st.radio("Story source", ["Story pack", "Live search"], horizontal=True)
+mode = st.radio(
+    "Story source",
+    ["Story pack", "Live search"],
+    horizontal=True,
+    index=_index(["Story pack", "Live search"], initial_mode),
+)
 demo_case: DemoCase | None = None
 
 if mode == "Story pack":
-    demo_case = get_demo_case(st.selectbox("Story pack", demo_case_titles()))
-    subject = st.text_input("Subject", value=demo_case.subject)
+    selected_title = st.selectbox("Story pack", scenario_titles, index=_index(scenario_titles, initial_case.title))
+    demo_case = get_demo_case(selected_title)
+    subject = st.text_input("Subject", value=_query_value("subject", demo_case.subject))
     st.write(demo_case.description)
 else:
-    subject = st.text_input("Subject", value="AI regulation last week")
+    subject = st.text_input("Subject", value=_query_value("subject", "AI regulation last week"))
     st.write("Live search uses a GNews token if supplied. Without one, it uses query-filtered public RSS metadata.")
 
 fixture_articles = _selected_articles(mode, demo_case)
 
 with st.expander("Advanced: choose implementation", expanded=False):
-    selected_impl = st.radio("Implementation", IMPLEMENTATIONS, index=0, horizontal=True)
+    selected_impl = st.radio(
+        "Implementation",
+        IMPLEMENTATIONS,
+        index=_index(IMPLEMENTATIONS, initial_impl),
+        horizontal=True,
+    )
     st.caption(IMPLEMENTATION_NOTES[selected_impl]["meaning"])
+
+with st.expander("Share this setup", expanded=False):
+    st.caption("This URL stores only the story selection and engine choice. It never includes pasted API keys.")
+    st.code(_share_url(mode, subject, provider, selected_impl, demo_case))
+    if st.button("Update browser URL"):
+        _update_query_params(mode, subject, provider, selected_impl, demo_case)
 
 buttons = st.columns([1, 1])
 run_single = buttons[0].button("Generate framing brief", type="primary")
@@ -252,6 +324,7 @@ run_compare = buttons[1].button("Under the hood: compare engines")
 
 if run_single:
     try:
+        _update_query_params(mode, subject, provider, selected_impl, demo_case)
         with st.spinner("Analyzing story..."):
             trace, elapsed = _run(selected_impl, subject, provider, model, keys, max_articles, fixture_articles)
         _render_trace(trace, elapsed)
@@ -260,6 +333,7 @@ if run_single:
 
 if run_compare:
     try:
+        _update_query_params(mode, subject, provider, selected_impl, demo_case)
         with st.spinner("Running the same story through all three implementations..."):
             results = {
                 implementation: _run(implementation, subject, provider, model, keys, max_articles, fixture_articles)

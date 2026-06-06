@@ -47,6 +47,13 @@ visible.
   `google`, or `ollama`.
 - Dead FAISS, sqlite, duplicate UI, pycache, and setup-script artifacts
   were removed from the active runtime.
+- Source-context cues now identify common think tanks, opinion outlets,
+  wire services, and public broadcasters. Uncataloged sources stay visible
+  instead of being silently treated as neutral.
+- Story selections can be shared with URL parameters. The URL never includes
+  pasted API keys.
+- `scripts/post_deploy_canary.py` checks the public Streamlit URL and verifies
+  story packs do not collapse to one generic label or confidence.
 - CI runs unit tests, eval fixtures, and import/build smoke checks.
 
 ## Run locally
@@ -56,6 +63,7 @@ python -m pip install -r requirements.txt
 python -m pytest
 python main.py "AI regulation last week" --impl static --provider heuristic
 python -m streamlit run app.py
+python scripts/post_deploy_canary.py --skip-url
 ```
 
 Optional local env:

@@ -6,6 +6,7 @@ from datetime import date, timedelta
 from typing import Any
 
 from core.citation import verify_citations
+from core.framing import source_context
 from core.llm_provider import LLMClient, extract_json_object, get_llm
 from core.news_search import hits_to_articles, search_articles
 from core.prompts import load_prompt
@@ -48,6 +49,10 @@ RIGHT_TERMS = [
     "religious liberty",
     "small business",
     "woke",
+    "school choice",
+    "free market",
+    "deregulation",
+    "progressive policies",
 ]
 
 CHARGED_TERMS = [
@@ -64,6 +69,13 @@ CHARGED_TERMS = [
 ]
 
 NON_POLITICAL_TERMS = ["football", "soccer", "earnings", "match", "tournament", "weather", "product launch"]
+
+
+def _metadata_only(articles: list[Article]) -> bool:
+    if not articles:
+        return False
+    thin_count = sum(1 for article in articles if len(article.text) < 240 and article.text.count(".") <= 1)
+    return thin_count / len(articles) >= 0.6
 
 
 def preprocess_subject(subject: str, today: date | None = None) -> StructuredQuery:
@@ -209,6 +221,9 @@ def detect_bias(summary: StructuredSummary, articles: list[Article], llm: LLMCli
     right_hits = [term for term in RIGHT_TERMS if term in combined]
     charged_hits = [term for term in CHARGED_TERMS if term in combined]
     non_political = any(term in combined for term in NON_POLITICAL_TERMS)
+    source_contexts = [source_context(article) for article in articles]
+    left_source_hits = [context[0] for context in source_contexts if context and context[1] == "left"]
+    right_source_hits = [context[0] for context in source_contexts if context and context[1] == "right"]
 
     if llm.provider != "heuristic":
         prompt = (
@@ -236,26 +251,36 @@ def detect_bias(summary: StructuredSummary, articles: list[Article], llm: LLMCli
             except Exception:
                 pass
 
-    if non_political and not left_hits and not right_hits:
+    if non_political and not left_hits and not right_hits and not left_source_hits and not right_source_hits:
         label = "Center"
         confidence = 0.72
         rationale = "The article set appears non-political or lacks ideological policy framing."
-    elif left_hits and right_hits:
+    elif (left_hits or left_source_hits) and (right_hits or right_source_hits):
         label = "Mixed"
         confidence = 0.64
         rationale = "The article set contains cues associated with both left-leaning and right-leaning frames."
-    elif left_hits:
+    elif left_hits or left_source_hits:
         label = "Lean Left"
-        confidence = min(0.88, 0.55 + 0.08 * len(left_hits))
-        rationale = "The article set includes policy language often associated with left-leaning framing."
-    elif right_hits:
+        confidence = min(0.88, 0.55 + 0.08 * len(left_hits) + 0.06 * len(left_source_hits))
+        if left_hits:
+            rationale = "The article set includes policy language often associated with left-leaning framing."
+        else:
+            rationale = "The directional signal comes from cataloged source context, not article-language evidence alone."
+    elif right_hits or right_source_hits:
         label = "Lean Right"
-        confidence = min(0.88, 0.55 + 0.08 * len(right_hits))
-        rationale = "The article set includes policy language often associated with right-leaning framing."
+        confidence = min(0.88, 0.55 + 0.08 * len(right_hits) + 0.06 * len(right_source_hits))
+        if right_hits:
+            rationale = "The article set includes policy language often associated with right-leaning framing."
+        else:
+            rationale = "The directional signal comes from cataloged source context, not article-language evidence alone."
     elif charged_hits:
         label = "Undetermined"
         confidence = 0.45
         rationale = "The article set contains charged language, but the direction of political framing is unclear."
+    elif _metadata_only(articles):
+        label = "Undetermined"
+        confidence = 0.35
+        rationale = "The run mostly has headline or metadata text, so the app should not infer a center frame."
     else:
         label = "Center"
         confidence = 0.58
@@ -269,7 +294,7 @@ def detect_bias(summary: StructuredSummary, articles: list[Article], llm: LLMCli
         confidence=confidence,
         rationale=rationale,
         evidence=evidence,
-        proxy_features=left_hits + right_hits + charged_hits,
+        proxy_features=left_hits + right_hits + charged_hits + left_source_hits + right_source_hits,
     )
 
 

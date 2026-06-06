@@ -32,8 +32,9 @@ and shows the evidence it used.
 
 ## next increments
 
-1. Add source-diversity scoring so the brief warns when all sources come from
-   one outlet family or one RSS wrapper.
-2. Add shareable report URLs for completed briefs.
-3. Add a small post-deploy canary that runs a story pack and verifies the brief
-   renders without exposing developer trace by default.
+1. Extend the source-context seed catalog as new source families appear in
+   real queries. Keep uncataloged sources explicit rather than guessing.
+2. Add persistent report snapshots for completed briefs, not just shareable
+   setup URLs.
+3. Add a browser-level post-deploy canary once the deployment platform exposes
+   stable DOM hooks for the hydrated Streamlit app.
