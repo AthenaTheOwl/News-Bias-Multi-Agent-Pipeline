@@ -2,7 +2,7 @@
 
 Deployment target: Streamlit Community Cloud.
 
-Requested URL: `https://news-bias-pipeline.streamlit.app`
+Live URL: `https://news-bias-multi-agent-pipeline.streamlit.app/`
 
 ## Steps
 
@@ -13,7 +13,7 @@ Requested URL: `https://news-bias-pipeline.streamlit.app`
 5. Main file path: `app.py`.
 6. Python version: 3.12.
 7. Secrets: leave blank for the default BYOK posture.
-8. App URL: request `news-bias-pipeline`.
+8. App URL: `news-bias-multi-agent-pipeline`.
 
 ## Why not Vercel
 

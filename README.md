@@ -1,12 +1,15 @@
 # News Bias Multi-Agent Pipeline
 
-A learning artifact for agent orchestration, news framing, and evidence
-discipline. It is not a production bias detector.
+A framing-brief generator for inspecting how an article set presents a story.
+It is also a learning artifact for agent orchestration and evidence discipline.
+It is not a production bias detector.
 
-The demo pulls articles for a subject, summarizes them, makes a
-structured bias judgment, asks a critic to review that judgment, and
-reconciles the result into a final report. The same pipeline is
-implemented three ways so the framework differences are easy to inspect:
+The public app should answer a simple reader question first: what framing is
+visible here, what evidence supports that, and what should I check before I
+trust or share the story?
+
+The implementation comparison is now under the hood. The same pipeline is
+implemented three ways so framework differences remain inspectable:
 
 | Implementation | File | What it teaches |
 |---|---|---|
@@ -18,7 +21,7 @@ implemented three ways so the framework differences are easy to inspect:
 
 Target host: Streamlit Community Cloud.
 
-Requested public URL: `https://news-bias-pipeline.streamlit.app`
+Public URL: `https://news-bias-multi-agent-pipeline.streamlit.app/`
 
 Entry point: `app.py`
 
@@ -81,6 +84,7 @@ Copy-Item .env.example .env
 - `impls/` - static, LangChain, and LangGraph implementations.
 - `tests/` - unit, eval, and smoke tests.
 - `docs/requirements.md` - traceable R-NB requirements.
+- `docs/product_vision.md` - product end state and next increments.
 - `docs/three_implementations.md` - framework comparison.
 - `docs/limitations.md` - what the demo cannot claim.
 - `docs/trust_model.md` - BYOK and deployment trust boundary.

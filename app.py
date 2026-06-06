@@ -1,114 +1,285 @@
 from __future__ import annotations
 
-import json
+from time import perf_counter
 
 import streamlit as st
 
+from core.demo_cases import DemoCase, demo_case_titles, get_demo_case
+from core.framing import framing_table, takeaways, watch_items
 from core.llm_provider import DEFAULT_MODELS
-from core.schemas import LLMKeys, PipelineTrace
+from core.schemas import Article, LLMKeys, PipelineTrace
 from impls.registry import IMPLEMENTATIONS, get_runner
+
+
+IMPLEMENTATION_NOTES = {
+    "static": {
+        "label": "Plain Python",
+        "meaning": "The same analysis steps run in a simple sequence.",
+    },
+    "langchain": {
+        "label": "LangChain",
+        "meaning": "The same steps are wrapped as a bounded runnable chain.",
+    },
+    "langgraph": {
+        "label": "LangGraph",
+        "meaning": "The same steps run as explicit state-machine nodes.",
+    },
+}
+
+LABEL_MEANING = {
+    "Left": "The article set strongly emphasizes left-coded policy frames.",
+    "Lean Left": "The article set leans toward left-coded policy frames, but this is not a source rating.",
+    "Center": "The article set is mostly informational or does not contain clear ideological framing.",
+    "Lean Right": "The article set leans toward right-coded policy frames, but this is not a source rating.",
+    "Right": "The article set strongly emphasizes right-coded policy frames.",
+    "Mixed": "The article set contains meaningful cues from both left-coded and right-coded frames.",
+    "Undetermined": "The article set has too little or too ambiguous evidence for a directional label.",
+}
+
+STAGE_LABELS = {
+    "preprocess": "Parse the subject and date window",
+    "search_fetch": "Collect article text or metadata",
+    "summarize": "Extract neutral summary and framing spans",
+    "bias_detect": "Score framing cues and produce a label",
+    "critique": "Challenge the detector output",
+    "reconcile": "Write the final reader-facing result",
+}
 
 
 st.set_page_config(page_title="News Bias Multi-Agent Pipeline", layout="wide")
 
 
 def _keys_from_sidebar() -> LLMKeys:
-    st.sidebar.header("Keys")
-    st.sidebar.caption("BYOK: keys stay in Streamlit session state and are not written to disk.")
+    st.sidebar.header("Optional keys")
+    st.sidebar.caption("Leave blank for heuristic mode. Pasted keys are not written to disk.")
     return LLMKeys(
-        anthropic_token=st.sidebar.text_input("Anthropic API key", type="password"),
-        openai_token=st.sidebar.text_input("OpenAI API key", type="password"),
-        google_token=st.sidebar.text_input("Google API key", type="password"),
-        gnews_token=st.sidebar.text_input("GNews API key (optional)", type="password"),
+        anthropic_token=st.sidebar.text_input("Anthropic key", type="password"),
+        openai_token=st.sidebar.text_input("OpenAI key", type="password"),
+        google_token=st.sidebar.text_input("Google key", type="password"),
+        gnews_token=st.sidebar.text_input("GNews key", type="password"),
         ollama_host=st.sidebar.text_input("Ollama host", value="http://localhost:11434"),
     )
 
 
-def _render_trace(trace: PipelineTrace) -> None:
-    top = st.columns([1, 1, 1, 1])
-    top[0].metric("Implementation", trace.implementation)
-    top[1].metric("Provider", trace.provider)
-    top[2].metric("Articles", len(trace.articles))
-    top[3].metric("Final label", trace.report.final_label)
+def _run(
+    implementation: str,
+    subject: str,
+    provider: str,
+    model: str | None,
+    keys: LLMKeys,
+    max_articles: int,
+    fixture_articles: list[Article] | None,
+) -> tuple[PipelineTrace, float]:
+    started = perf_counter()
+    trace = get_runner(implementation)(
+        subject,
+        provider=provider,
+        model=model or None,
+        keys=keys,
+        max_articles=max_articles,
+        fixture_articles=fixture_articles,
+    )
+    return trace, perf_counter() - started
 
-    st.subheader("Final report")
-    st.markdown(trace.to_markdown())
 
-    st.subheader("Pipeline trace")
-    for stage in trace.stages:
-        with st.expander(stage.name, expanded=stage.name in {"bias_detect", "critique", "reconcile"}):
-            if stage.notes:
-                st.info("\n".join(stage.notes))
-            st.json(stage.output)
+def _selected_articles(mode: str, demo_case: DemoCase | None) -> list[Article] | None:
+    if mode == "Story pack" and demo_case is not None:
+        return list(demo_case.articles)
+    return None
 
-    st.subheader("Articles")
+
+def _article_title(trace: PipelineTrace, article_id: str) -> str:
+    article = next((item for item in trace.articles if item.id == article_id), None)
+    if article is None:
+        return article_id
+    return f"{article.source}: {article.title}"
+
+
+def _render_framing_brief(trace: PipelineTrace, elapsed: float) -> None:
+    label = trace.report.final_label
+    st.subheader("Framing brief")
+
+    metrics = st.columns([1, 1, 1, 1, 1])
+    metrics[0].metric("Frame", label)
+    metrics[1].metric("Confidence", f"{trace.report.confidence:.2f}")
+    metrics[2].metric("Articles", trace.report.article_count)
+    metrics[3].metric("Engine", IMPLEMENTATION_NOTES[trace.implementation]["label"])
+    metrics[4].metric("Runtime", f"{int(elapsed * 1000)} ms")
+
+    st.markdown(f"**Bottom line:** {LABEL_MEANING.get(label, 'Review the evidence below.')}")
+    st.write(trace.report.executive_summary)
+
+    st.markdown("**What to take away**")
+    for item in takeaways(trace):
+        st.markdown(f"- {item}")
+
+    with st.container(border=True):
+        st.markdown("**Coverage framing map**")
+        rows = framing_table(trace)
+        if rows:
+            st.dataframe(rows, use_container_width=True, hide_index=True)
+        else:
+            st.caption("No source rows available.")
+
+    with st.container(border=True):
+        st.markdown("**Watch before sharing**")
+        for item in watch_items(trace):
+            st.markdown(f"- {item}")
+
+    with st.container(border=True):
+        st.markdown("**Critic review**")
+        verdict = "agreed with the detector" if trace.critique.agree_with_detector else "changed or weakened the detector label"
+        st.write(f"The critic {verdict}. {trace.critique.reasoning}")
+        st.caption(trace.critique.proxy_notes)
+
+
+def _render_evidence(trace: PipelineTrace) -> None:
+    st.subheader("Evidence spans")
+    if not trace.bias_judgment.evidence:
+        st.info("No citation spans were produced for this run.")
+        return
+    for citation in trace.bias_judgment.evidence:
+        with st.container(border=True):
+            st.caption(_article_title(trace, citation.article_id))
+            st.write(citation.span_text)
+
+
+def _render_sources(trace: PipelineTrace) -> None:
+    st.subheader("Source set")
+    if not trace.articles:
+        st.info("No articles were available for this query.")
+        return
     for article in trace.articles:
-        with st.expander(article.title):
+        with st.expander(f"{article.source}: {article.title}"):
             st.write(article.url)
-            st.write(article.text[:2500])
-
-    with st.expander("Raw PipelineTrace JSON"):
-        st.code(trace.model_dump_json(indent=2), language="json")
+            st.write(article.text[:1200])
 
 
-st.title("News Bias Multi-Agent Pipeline")
-st.caption("A learning artifact: three framework styles, one typed trace, exact-span citations.")
+def _render_path(trace: PipelineTrace) -> None:
+    st.subheader("Analysis path")
+    for stage in trace.stages:
+        label = STAGE_LABELS.get(stage.name, stage.name)
+        note = "; ".join(stage.notes) if stage.notes else "completed"
+        st.markdown(f"- **{label}**: {note}")
+
+
+def _render_developer_trace(trace: PipelineTrace) -> None:
+    with st.expander("Developer trace"):
+        st.json(
+            {
+                "subject": trace.subject,
+                "implementation": trace.implementation,
+                "provider": trace.provider,
+                "stages": [stage.model_dump() for stage in trace.stages],
+                "citation_errors": trace.citation_errors,
+                "framework_notes": trace.framework_notes,
+            }
+        )
+
+
+def _render_trace(trace: PipelineTrace, elapsed: float) -> None:
+    _render_framing_brief(trace, elapsed)
+    _render_evidence(trace)
+    _render_sources(trace)
+    with st.expander("Under the hood: analysis path"):
+        _render_path(trace)
+        _render_developer_trace(trace)
+
+
+def _render_comparison(results: dict[str, tuple[PipelineTrace, float]]) -> None:
+    labels = {trace.report.final_label for trace, _elapsed in results.values()}
+    st.subheader("Implementation comparison")
+    if len(labels) == 1:
+        st.success(
+            "All three implementations produced the same reader-facing result. That is good: the framework changed, not the analysis contract."
+        )
+    else:
+        st.warning("The implementations disagreed. Open each tab below to inspect the stage path.")
+
+    rows = []
+    for name, (trace, elapsed) in results.items():
+        rows.append(
+            {
+                "implementation": IMPLEMENTATION_NOTES[name]["label"],
+                "what changed": IMPLEMENTATION_NOTES[name]["meaning"],
+                "final label": trace.report.final_label,
+                "confidence": round(trace.report.confidence, 3),
+                "runtime": f"{int(elapsed * 1000)} ms",
+                "citations": "clean" if not trace.citation_errors else "failed",
+            }
+        )
+    st.dataframe(rows, use_container_width=True, hide_index=True)
+
+    tabs = st.tabs([IMPLEMENTATION_NOTES[name]["label"] for name in results])
+    for tab, (name, (trace, elapsed)) in zip(tabs, results.items(), strict=True):
+        with tab:
+            st.markdown(f"**{IMPLEMENTATION_NOTES[name]['meaning']}**")
+            _render_path(trace)
+            with st.expander("Result details"):
+                _render_framing_brief(trace, elapsed)
+                _render_evidence(trace)
+
+
+st.title("Framing Brief")
+st.caption("Turn a news topic into a concise read on framing, evidence, and what to check before sharing.")
 
 with st.sidebar:
-    impl = st.radio("Implementation", IMPLEMENTATIONS, index=0)
-    provider = st.selectbox("LLM provider", ["heuristic", "anthropic", "openai", "google", "ollama"], index=0)
+    provider = st.selectbox("Analysis mode", ["heuristic", "anthropic", "openai", "google", "ollama"], index=0)
     model = st.text_input("Model", value=DEFAULT_MODELS.get(provider, ""))
-    max_articles = st.slider("Max articles", min_value=1, max_value=8, value=4)
+    max_articles = st.slider("Max live articles", min_value=1, max_value=8, value=4)
     keys = _keys_from_sidebar()
 
-subject = st.text_input("Subject", value="AI regulation last week")
-run_button = st.button("Run pipeline", type="primary")
+mode = st.radio("Story source", ["Story pack", "Live search"], horizontal=True)
+demo_case: DemoCase | None = None
 
-st.info(
-    "Heuristic mode needs no keys and is meant for inspection. Provider modes use your pasted key for this session only."
-)
+if mode == "Story pack":
+    demo_case = get_demo_case(st.selectbox("Story pack", demo_case_titles()))
+    subject = st.text_input("Subject", value=demo_case.subject)
+    st.write(demo_case.description)
+else:
+    subject = st.text_input("Subject", value="AI regulation last week")
+    st.write("Live search uses a GNews token if supplied. Without one, it uses query-filtered public RSS metadata.")
 
-if run_button:
+fixture_articles = _selected_articles(mode, demo_case)
+
+with st.expander("Advanced: choose implementation", expanded=False):
+    selected_impl = st.radio("Implementation", IMPLEMENTATIONS, index=0, horizontal=True)
+    st.caption(IMPLEMENTATION_NOTES[selected_impl]["meaning"])
+
+buttons = st.columns([1, 1])
+run_single = buttons[0].button("Generate framing brief", type="primary")
+run_compare = buttons[1].button("Under the hood: compare engines")
+
+if run_single:
     try:
-        with st.spinner("Running pipeline..."):
-            trace = get_runner(impl)(
-                subject,
-                provider=provider,
-                model=model or None,
-                keys=keys,
-                max_articles=max_articles,
-            )
-        _render_trace(trace)
+        with st.spinner("Analyzing story..."):
+            trace, elapsed = _run(selected_impl, subject, provider, model, keys, max_articles, fixture_articles)
+        _render_trace(trace, elapsed)
     except Exception as exc:
         st.error(f"Run failed: {exc}")
 
-with st.expander("Compare the three implementation styles"):
+if run_compare:
+    try:
+        with st.spinner("Running the same story through all three implementations..."):
+            results = {
+                implementation: _run(implementation, subject, provider, model, keys, max_articles, fixture_articles)
+                for implementation in IMPLEMENTATIONS
+            }
+        _render_comparison(results)
+    except Exception as exc:
+        st.error(f"Comparison failed: {exc}")
+
+if not run_single and not run_compare:
+    st.subheader("End state")
     st.markdown(
         """
-        - **static**: sequential Python calls; easiest baseline to debug.
-        - **langchain**: bounded Runnable composition over the same core.
-        - **langgraph**: explicit state graph with one node per stage.
+        This is not trying to be a magic bias labeler. The product goal is a small,
+        inspectable **framing brief**:
 
-        All three return the same `PipelineTrace` shape.
+        - what the article set says happened
+        - which frames are visible across sources
+        - which exact spans support the label
+        - whether the critic thought the detector overreached
+        - what to check before you trust or share the story
         """
     )
-
-    if st.button("Run all three with heuristic mode"):
-        results = {}
-        for candidate in IMPLEMENTATIONS:
-            results[candidate] = get_runner(candidate)(
-                subject,
-                provider="heuristic",
-                keys=LLMKeys(gnews_token=keys.gnews_token),
-                max_articles=max_articles,
-            )
-        st.json(
-            {
-                name: {
-                    "label": trace.report.final_label,
-                    "confidence": trace.report.confidence,
-                    "stages": [stage.name for stage in trace.stages],
-                }
-                for name, trace in results.items()
-            }
-        )
