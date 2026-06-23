@@ -62,7 +62,7 @@ visible.
 python -m pip install -r requirements.txt
 python -m pytest
 python main.py "AI regulation last week" --impl static --provider heuristic
-python -m streamlit run app.py
+python -m streamlit run streamlit_app.py
 python scripts/post_deploy_canary.py --skip-url
 ```
 
@@ -107,6 +107,22 @@ mode.
 
 This is a regression gate, not a research benchmark. The limitations are
 documented in `docs/limitations.md`.
+
+## live demo
+
+Live Streamlit app: <https://news-bias-multi-agent-pipeline.streamlit.app/>
+
+Streamlit Cloud entrypoint:
+
+```text
+streamlit_app.py
+```
+
+## connects to
+
+- `ai-field-brief` for source-scouting discipline and source registry patterns.
+- `LLM-evaluation-framework` for judge and deterministic evaluation patterns.
+- `trace-to-eval-harness` for turning pipeline traces into review packets.
 
 ## Security note
 
