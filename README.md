@@ -1,6 +1,6 @@
 # News Bias Multi-Agent Pipeline
 
-Type `Manhattan Institute` and a lazy demo calls it neutral because the CSV ran out of adjectives. This app keeps source context visible, checks spans verbatim, and makes the critic argue with a real bias judgment.
+Hand a lazy bias demo a source its lookup table never scored and it shrugs and calls the thing neutral, because the CSV ran out of adjectives. This app keeps source context visible, checks spans verbatim, and makes the critic argue with a real bias judgment.
 
 ## What it does
 
