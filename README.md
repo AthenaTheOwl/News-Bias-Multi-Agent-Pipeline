@@ -92,6 +92,11 @@ Copy-Item .env.example .env
 
 ## Evaluation
 
+The [evidence-first critic experiment](docs/evidence-first-critic-experiment.md)
+specifies a paired ablation for checking whether the critic relays an earlier
+label. It preserves the current runtime as the control and defines clean,
+unsupported and undetermined cases, human labels, and evidence-based outcomes.
+
 `tests/eval/golden_fixtures.yaml` contains ten small labeled fixtures: left, right, mixed, neutral, and undetermined cases. The gate requires each implementation to hit at least 80 percent agreement in heuristic mode.
 
 This gate catches regression in the demo fixtures. Research-grade bias measurement would need a larger labeled corpus and independent annotation.
