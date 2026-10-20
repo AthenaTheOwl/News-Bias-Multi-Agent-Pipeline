@@ -89,6 +89,9 @@ Copy-Item .env.example .env
 - `docs/limitations.md` - what the demo cannot claim.
 - `docs/trust_model.md` - BYOK and deployment trust boundary.
 - `docs/research.md` - sources used to shape the overhaul.
+- `docs/deploy.md` - Streamlit Community Cloud deployment notes.
+- `docs/roadmap.md` - shipped work and next iteration.
+- `docs/evidence-first-critic-experiment.md` - proposed critic-relay ablation (not run).
 
 ## Evaluation
 
@@ -96,6 +99,8 @@ The [evidence-first critic experiment](docs/evidence-first-critic-experiment.md)
 specifies a paired ablation for checking whether the critic relays an earlier
 label. It preserves the current runtime as the control and defines clean,
 unsupported and undetermined cases, human labels, and evidence-based outcomes.
+It targets model-backed providers: the heuristic critic reads only the
+detector's label and confidence, so it relays the label by construction.
 
 `tests/eval/golden_fixtures.yaml` contains ten small labeled fixtures: left, right, mixed, neutral, and undetermined cases. The gate requires each implementation to hit at least 80 percent agreement in heuristic mode.
 
